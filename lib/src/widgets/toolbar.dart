@@ -6,18 +6,18 @@ import '../models/documents/attribute.dart';
 import '../utils/media_pick_setting.dart';
 import 'controller.dart';
 import 'toolbar/arrow_indicated_button_list.dart';
-import 'toolbar/camera_button.dart';
+// import 'toolbar/camera_button.dart';
 import 'toolbar/clear_format_button.dart';
 import 'toolbar/color_button.dart';
 import 'toolbar/history_button.dart';
-import 'toolbar/image_button.dart';
+// import 'toolbar/image_button.dart';
 import 'toolbar/indent_button.dart';
 import 'toolbar/insert_embed_button.dart';
 import 'toolbar/link_style_button.dart';
 import 'toolbar/select_header_style_button.dart';
 import 'toolbar/toggle_check_list_button.dart';
 import 'toolbar/toggle_style_button.dart';
-import 'toolbar/video_button.dart';
+// import 'toolbar/video_button.dart';
 
 export '../utils/media_pick_setting.dart';
 export 'toolbar/clear_format_button.dart';
@@ -176,37 +176,37 @@ class QuillToolbar extends StatelessWidget implements PreferredSizeWidget {
             iconSize: toolbarIconSize,
             controller: controller,
           ),
-        if (showImageButton)
-          ImageButton(
-            icon: Icons.image,
-            iconSize: toolbarIconSize,
-            controller: controller,
-            onImagePickCallback: onImagePickCallback,
-            filePickImpl: filePickImpl,
-            webImagePickImpl: webImagePickImpl,
-            mediaPickSettingSelector: mediaPickSettingSelector,
-          ),
-        if (showVideoButton)
-          VideoButton(
-            icon: Icons.movie_creation,
-            iconSize: toolbarIconSize,
-            controller: controller,
-            onVideoPickCallback: onVideoPickCallback,
-            filePickImpl: filePickImpl,
-            webVideoPickImpl: webImagePickImpl,
-            mediaPickSettingSelector: mediaPickSettingSelector,
-          ),
-        if ((onImagePickCallback != null || onVideoPickCallback != null) &&
-            showCameraButton)
-          CameraButton(
-              icon: Icons.photo_camera,
-              iconSize: toolbarIconSize,
-              controller: controller,
-              onImagePickCallback: onImagePickCallback,
-              onVideoPickCallback: onVideoPickCallback,
-              filePickImpl: filePickImpl,
-              webImagePickImpl: webImagePickImpl,
-              webVideoPickImpl: webVideoPickImpl),
+        // if (showImageButton)
+        //   ImageButton(
+        //     icon: Icons.image,
+        //     iconSize: toolbarIconSize,
+        //     controller: controller,
+        //     onImagePickCallback: onImagePickCallback,
+        //     filePickImpl: filePickImpl,
+        //     webImagePickImpl: webImagePickImpl,
+        //     mediaPickSettingSelector: mediaPickSettingSelector,
+        //   ),
+        // if (showVideoButton)
+        //   VideoButton(
+        //     icon: Icons.movie_creation,
+        //     iconSize: toolbarIconSize,
+        //     controller: controller,
+        //     onVideoPickCallback: onVideoPickCallback,
+        //     filePickImpl: filePickImpl,
+        //     webVideoPickImpl: webImagePickImpl,
+        //     mediaPickSettingSelector: mediaPickSettingSelector,
+        //   ),
+        // if ((onImagePickCallback != null || onVideoPickCallback != null) &&
+        //     showCameraButton)
+        //   CameraButton(
+        //       icon: Icons.photo_camera,
+        //       iconSize: toolbarIconSize,
+        //       controller: controller,
+        //       onImagePickCallback: onImagePickCallback,
+        //       onVideoPickCallback: onVideoPickCallback,
+        //       filePickImpl: filePickImpl,
+        //       webImagePickImpl: webImagePickImpl,
+        //       webVideoPickImpl: webVideoPickImpl),
         if (isButtonGroupShown[0] &&
             (isButtonGroupShown[1] ||
                 isButtonGroupShown[2] ||
