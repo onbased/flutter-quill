@@ -104,11 +104,11 @@ class TextLine extends StatelessWidget {
   TextAlign _getTextAlign() {
     final alignment = line.style.attributes[Attribute.align.key];
     if (alignment == Attribute.leftAlignment) {
-      return TextAlign.left;
+      return TextAlign.start;
     } else if (alignment == Attribute.centerAlignment) {
       return TextAlign.center;
     } else if (alignment == Attribute.rightAlignment) {
-      return TextAlign.right;
+      return TextAlign.end;
     } else if (alignment == Attribute.justifyAlignment) {
       return TextAlign.justify;
     }
@@ -140,13 +140,20 @@ class TextLine extends StatelessWidget {
 
     textStyle = textStyle.merge(m[header] ?? defaultStyles.paragraph!.style);
 
-    final block = line.style.getBlockExceptHeader();
+    // Only retrieve exclusive block format for the line style purpose
+    Attribute? block;
+    line.style.getBlocksExceptHeader().forEach((key, value) {
+      if (Attribute.exclusiveBlockKeys.contains(key)) {
+        block = value;
+      }
+    });
+
     TextStyle? toMerge;
     if (block == Attribute.blockQuote) {
       toMerge = defaultStyles.quote!.style;
     } else if (block == Attribute.codeBlock) {
       toMerge = defaultStyles.code!.style;
-    } else if (block != null) {
+    } else if (block == Attribute.list) {
       toMerge = defaultStyles.lists!.style;
     }
 
@@ -181,6 +188,7 @@ class TextLine extends StatelessWidget {
     <String, TextStyle?>{
       Attribute.bold.key: defaultStyles.bold,
       Attribute.italic.key: defaultStyles.italic,
+      Attribute.small.key: defaultStyles.small,
       Attribute.link.key: defaultStyles.link,
       Attribute.underline.key: defaultStyles.underline,
       Attribute.strikeThrough.key: defaultStyles.strikeThrough,
@@ -817,7 +825,7 @@ class RenderEditableTextLine extends RenderEditableBox {
           cursorCont.show.value &&
           containsCursor() &&
           !cursorCont.style.paintAboveText) {
-        _paintCursor(context, effectiveOffset);
+        _paintCursor(context, effectiveOffset, line.hasEmbed);
       }
 
       context.paintChild(_body!, effectiveOffset);
@@ -826,7 +834,7 @@ class RenderEditableTextLine extends RenderEditableBox {
           cursorCont.show.value &&
           containsCursor() &&
           cursorCont.style.paintAboveText) {
-        _paintCursor(context, effectiveOffset);
+        _paintCursor(context, effectiveOffset, line.hasEmbed);
       }
     }
   }
@@ -839,12 +847,14 @@ class RenderEditableTextLine extends RenderEditableBox {
     }
   }
 
-  void _paintCursor(PaintingContext context, Offset effectiveOffset) {
+  void _paintCursor(
+      PaintingContext context, Offset effectiveOffset, bool lineHasEmbed) {
     final position = TextPosition(
       offset: textSelection.extentOffset - line.documentOffset,
       affinity: textSelection.base.affinity,
     );
-    _cursorPainter.paint(context.canvas, effectiveOffset, position);
+    _cursorPainter.paint(
+        context.canvas, effectiveOffset, position, lineHasEmbed);
   }
 
   @override
