@@ -131,6 +131,17 @@ class CursorCont extends ChangeNotifier {
   Timer? _cursorTimer;
   bool _targetCursorVisibility = false;
 
+  final ValueNotifier<TextPosition?> _floatingCursorTextPosition =
+      ValueNotifier(null);
+
+  ValueNotifier<TextPosition?> get floatingCursorTextPosition =>
+      _floatingCursorTextPosition;
+
+  void setFloatingCursorTextPosition(TextPosition? position) =>
+      _floatingCursorTextPosition.value = position;
+
+  bool get isFloatingCursorActive => floatingCursorTextPosition.value != null;
+
   CursorStyle _style;
   CursorStyle get style => _style;
   set style(CursorStyle value) {
@@ -228,13 +239,13 @@ class CursorCont extends ChangeNotifier {
 
 /// Paints the editing cursor.
 class CursorPainter {
-  CursorPainter(
-    this.editable,
-    this.style,
-    this.prototype,
-    this.color,
-    this.devicePixelRatio,
-  );
+  CursorPainter({
+    required this.editable,
+    required this.style,
+    required this.prototype,
+    required this.color,
+    required this.devicePixelRatio,
+  });
 
   final RenderContentProxyBox? editable;
   final CursorStyle style;
@@ -243,9 +254,23 @@ class CursorPainter {
   final double devicePixelRatio;
 
   /// Paints cursor on [canvas] at specified [position].
-  void paint(Canvas canvas, Offset offset, TextPosition position) {
-    final caretOffset =
-        editable!.getOffsetForCaret(position, prototype) + offset;
+  /// [offset] is global top left (x, y) of text line
+  /// [position] is relative (x) in text line
+  void paint(
+      Canvas canvas, Offset offset, TextPosition position, bool lineHasEmbed) {
+    // relative (x, y) to global offset
+    var relativeCaretOffset = editable!.getOffsetForCaret(position, prototype);
+    if (lineHasEmbed && relativeCaretOffset == Offset.zero) {
+      relativeCaretOffset = editable!.getOffsetForCaret(
+          TextPosition(
+              offset: position.offset - 1, affinity: position.affinity),
+          prototype);
+      // Hardcoded 6 as estimate of the width of a character
+      relativeCaretOffset =
+          Offset(relativeCaretOffset.dx + 6, relativeCaretOffset.dy);
+    }
+
+    final caretOffset = relativeCaretOffset + offset;
     var caretRect = prototype.shift(caretOffset);
     if (style.offset != null) {
       caretRect = caretRect.shift(style.offset!);

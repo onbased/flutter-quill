@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -20,9 +21,8 @@ import 'cursor.dart';
 import 'default_styles.dart';
 import 'delegate.dart';
 import 'editor.dart';
-import 'keyboard_listener.dart';
 import 'proxy.dart';
-import 'raw_editor/raw_editor_state_keyboard_mixin.dart';
+import 'quill_single_child_scroll_view.dart';
 import 'raw_editor/raw_editor_state_selection_delegate_mixin.dart';
 import 'raw_editor/raw_editor_state_text_input_client_mixin.dart';
 import 'text_block.dart';
@@ -30,40 +30,45 @@ import 'text_line.dart';
 import 'text_selection.dart';
 
 class RawEditor extends StatefulWidget {
-  const RawEditor(
-    Key key,
-    this.controller,
-    this.focusNode,
-    this.scrollController,
-    this.scrollable,
-    this.scrollBottomInset,
-    this.padding,
-    this.readOnly,
+  const RawEditor({
+    required this.controller,
+    required this.focusNode,
+    required this.scrollController,
+    required this.scrollBottomInset,
+    required this.cursorStyle,
+    required this.selectionColor,
+    required this.selectionCtrls,
+    Key? key,
+    this.scrollable = true,
+    this.padding = EdgeInsets.zero,
+    this.readOnly = false,
     this.placeholder,
     this.onLaunchUrl,
-    this.toolbarOptions,
-    this.showSelectionHandles,
+    this.toolbarOptions = const ToolbarOptions(
+      copy: true,
+      cut: true,
+      paste: true,
+      selectAll: true,
+    ),
+    this.showSelectionHandles = false,
     bool? showCursor,
-    this.cursorStyle,
-    this.textCapitalization,
+    this.textCapitalization = TextCapitalization.none,
     this.maxHeight,
     this.minHeight,
     this.customStyles,
-    this.expands,
-    this.autoFocus,
-    this.selectionColor,
-    this.selectionCtrls,
-    this.keyboardAppearance,
-    this.enableInteractiveSelection,
+    this.expands = false,
+    this.autoFocus = false,
+    this.keyboardAppearance = Brightness.light,
+    this.enableInteractiveSelection = true,
     this.scrollPhysics,
-    this.embedBuilder,
-  )   : assert(maxHeight == null || maxHeight > 0, 'maxHeight cannot be null'),
+    this.embedBuilder = defaultEmbedBuilder,
+    this.customStyleBuilder,
+  })  : assert(maxHeight == null || maxHeight > 0, 'maxHeight cannot be null'),
         assert(minHeight == null || minHeight >= 0, 'minHeight cannot be null'),
         assert(maxHeight == null || minHeight == null || maxHeight >= minHeight,
             'maxHeight cannot be null'),
         showCursor = showCursor ?? true,
         super(key: key);
-
   final QuillController controller;
   final FocusNode focusNode;
   final ScrollController scrollController;
@@ -89,7 +94,7 @@ class RawEditor extends StatefulWidget {
   final bool enableInteractiveSelection;
   final ScrollPhysics? scrollPhysics;
   final EmbedBuilder embedBuilder;
-
+  final CustomStyleBuilder? customStyleBuilder;
   @override
   State<StatefulWidget> createState() => RawEditorState();
 }
@@ -99,13 +104,11 @@ class RawEditorState extends EditorState
         AutomaticKeepAliveClientMixin<RawEditor>,
         WidgetsBindingObserver,
         TickerProviderStateMixin<RawEditor>,
-        RawEditorStateKeyboardMixin,
+        TextEditingActionTarget,
         RawEditorStateTextInputClientMixin,
         RawEditorStateSelectionDelegateMixin {
   final GlobalKey _editorKey = GlobalKey();
 
-  // Keyboard
-  late KeyboardListener _keyboardListener;
   KeyboardVisibilityController? _keyboardVisibilityController;
   StreamSubscription<bool>? _keyboardVisibilitySubscription;
   bool _keyboardVisible = false;
@@ -119,6 +122,7 @@ class RawEditorState extends EditorState
   ScrollController get scrollController => _scrollController;
   late ScrollController _scrollController;
 
+  // Cursors
   late CursorCont _cursorCont;
 
   // Focus
@@ -126,6 +130,7 @@ class RawEditorState extends EditorState
   FocusAttachment? _focusAttachment;
   bool get _hasFocus => widget.focusNode.hasFocus;
 
+  // Theme
   DefaultStyles? _styles;
 
   final ClipboardStatusNotifier _clipboardStatus = ClipboardStatusNotifier();
@@ -155,6 +160,7 @@ class RawEditorState extends EditorState
           document: _doc,
           selection: widget.controller.selection,
           hasFocus: _hasFocus,
+          cursorController: _cursorCont,
           textDirection: _textDirection,
           startHandleLayerLink: _startHandleLayerLink,
           endHandleLayerLink: _endHandleLayerLink,
@@ -172,10 +178,27 @@ class RawEditorState extends EditorState
       child = BaselineProxy(
         textStyle: _styles!.paragraph!.style,
         padding: baselinePadding,
-        child: SingleChildScrollView(
+        child: QuillSingleChildScrollView(
           controller: _scrollController,
           physics: widget.scrollPhysics,
-          child: child,
+          viewportBuilder: (_, offset) => CompositedTransformTarget(
+            link: _toolbarLayerLink,
+            child: _Editor(
+              key: _editorKey,
+              offset: offset,
+              document: widget.controller.document,
+              selection: widget.controller.selection,
+              hasFocus: _hasFocus,
+              textDirection: _textDirection,
+              startHandleLayerLink: _startHandleLayerLink,
+              endHandleLayerLink: _endHandleLayerLink,
+              onSelectionChanged: _handleSelectionChanged,
+              scrollBottomInset: widget.scrollBottomInset,
+              padding: widget.padding,
+              cursorController: _cursorCont,
+              children: _buildChildren(_doc, context),
+            ),
+          ),
         ),
       );
     }
@@ -231,23 +254,24 @@ class RawEditorState extends EditorState
       } else if (node is Block) {
         final attrs = node.style.attributes;
         final editableTextBlock = EditableTextBlock(
-            node,
-            _textDirection,
-            widget.scrollBottomInset,
-            _getVerticalSpacingForBlock(node, _styles),
-            widget.controller.selection,
-            widget.selectionColor,
-            _styles,
-            widget.enableInteractiveSelection,
-            _hasFocus,
-            attrs.containsKey(Attribute.codeBlock.key)
+            block: node,
+            textDirection: _textDirection,
+            scrollBottomInset: widget.scrollBottomInset,
+            verticalSpacing: _getVerticalSpacingForBlock(node, _styles),
+            textSelection: widget.controller.selection,
+            color: widget.selectionColor,
+            styles: _styles,
+            enableInteractiveSelection: widget.enableInteractiveSelection,
+            hasFocus: _hasFocus,
+            contentPadding: attrs.containsKey(Attribute.codeBlock.key)
                 ? const EdgeInsets.all(16)
                 : null,
-            widget.embedBuilder,
-            _cursorCont,
-            indentLevelCounts,
-            _handleCheckboxTap,
-            widget.readOnly);
+            embedBuilder: widget.embedBuilder,
+            cursorCont: _cursorCont,
+            indentLevelCounts: indentLevelCounts,
+            onCheckboxTap: _handleCheckboxTap,
+            readOnly: widget.readOnly,
+            customStyleBuilder: widget.customStyleBuilder);
         result.add(editableTextBlock);
       } else {
         throw StateError('Unreachable.');
@@ -262,6 +286,7 @@ class RawEditorState extends EditorState
       line: node,
       textDirection: _textDirection,
       embedBuilder: widget.embedBuilder,
+      customStyleBuilder: widget.customStyleBuilder,
       styles: _styles!,
       readOnly: widget.readOnly,
     );
@@ -310,8 +335,12 @@ class RawEditorState extends EditorState
       return defaultStyles!.code!.verticalSpacing;
     } else if (attrs.containsKey(Attribute.indent.key)) {
       return defaultStyles!.indent!.verticalSpacing;
+    } else if (attrs.containsKey(Attribute.list.key)) {
+      return defaultStyles!.lists!.verticalSpacing;
+    } else if (attrs.containsKey(Attribute.align.key)) {
+      return defaultStyles!.align!.verticalSpacing;
     }
-    return defaultStyles!.lists!.verticalSpacing;
+    return const Tuple2(0, 0);
   }
 
   @override
@@ -333,11 +362,9 @@ class RawEditorState extends EditorState
       tickerProvider: this,
     );
 
-    _keyboardListener = KeyboardListener(
-      handleCursorMovement,
-      handleShortcut,
-      handleDelete,
-    );
+    // Floating cursor
+    _floatingCursorResetController = AnimationController(vsync: this);
+    _floatingCursorResetController.addListener(onFloatingCursorResetTick);
 
     if (defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.macOS ||
@@ -356,8 +383,7 @@ class RawEditorState extends EditorState
       });
     }
 
-    _focusAttachment = widget.focusNode.attach(context,
-        onKey: (node, event) => _keyboardListener.handleRawKeyEvent(event));
+    _focusAttachment = widget.focusNode.attach(context);
     widget.focusNode.addListener(_handleFocusChanged);
   }
 
@@ -402,8 +428,7 @@ class RawEditorState extends EditorState
     if (widget.focusNode != oldWidget.focusNode) {
       oldWidget.focusNode.removeListener(_handleFocusChanged);
       _focusAttachment?.detach();
-      _focusAttachment = widget.focusNode.attach(context,
-          onKey: (node, event) => _keyboardListener.handleRawKeyEvent(event));
+      _focusAttachment = widget.focusNode.attach(context);
       widget.focusNode.addListener(_handleFocusChanged);
       updateKeepAlive();
     }
@@ -561,7 +586,7 @@ class RawEditorState extends EditorState
 
     _showCaretOnScreenScheduled = true;
     SchedulerBinding.instance!.addPostFrameCallback((_) {
-      if (widget.scrollable) {
+      if (widget.scrollable || _scrollController.hasClients) {
         _showCaretOnScreenScheduled = false;
 
         final renderEditor = getRenderEditor();
@@ -582,7 +607,7 @@ class RawEditorState extends EditorState
 
         if (offset != null) {
           _scrollController.animateTo(
-            offset,
+            math.min(offset, _scrollController.position.maxScrollExtent),
             duration: const Duration(milliseconds: 100),
             curve: Curves.fastOutSlowIn,
           );
@@ -597,26 +622,28 @@ class RawEditorState extends EditorState
   }
 
   @override
-  TextEditingValue getTextEditingValue() {
-    return widget.controller.plainTextEditingValue;
-  }
-
-  @override
   void requestKeyboard() {
     if (_hasFocus) {
       openConnectionIfNeeded();
+      _showCaretOnScreen();
     } else {
       widget.focusNode.requestFocus();
     }
   }
 
   @override
-  void setTextEditingValue(TextEditingValue value) {
-    if (value.text == textEditingValue.text) {
-      widget.controller.updateSelection(value.selection, ChangeSource.LOCAL);
-    } else {
-      _setEditingValue(value);
+  void setTextEditingValue(
+      TextEditingValue value, SelectionChangedCause cause) {
+    if (value == textEditingValue) {
+      return;
     }
+    textEditingValue = value;
+    userUpdateTextEditingValue(value, cause);
+  }
+
+  @override
+  void debugAssertLayoutUpToDate() {
+    getRenderEditor()!.debugAssertLayoutUpToDate();
   }
 
   // set editing value from clipboard for mobile
@@ -634,10 +661,25 @@ class RawEditorState extends EditorState
       if (data != null) {
         final length =
             textEditingValue.selection.end - textEditingValue.selection.start;
+        var str = data.text!;
+        final codes = data.text!.codeUnits;
+        // For clip from editor, it may contain image, a.k.a 65532.
+        // For clip from browser, image is directly ignore.
+        // Here we skip image when pasting.
+        if (codes.contains(65532)) {
+          final sb = StringBuffer();
+          for (var i = 0; i < str.length; i++) {
+            if (str.codeUnitAt(i) == 65532) {
+              continue;
+            }
+            sb.write(str[i]);
+          }
+          str = sb.toString();
+        }
         widget.controller.replaceText(
           value.selection.start,
           length,
-          data.text,
+          str,
           value.selection,
         );
         // move cursor to the end of pasted text selection
@@ -677,7 +719,84 @@ class RawEditorState extends EditorState
   }
 
   @override
+  void copySelection(SelectionChangedCause cause) {
+    // Copied straight from EditableTextState
+    super.copySelection(cause);
+    if (cause == SelectionChangedCause.toolbar) {
+      bringIntoView(textEditingValue.selection.extent);
+      hideToolbar(false);
+
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.iOS:
+          break;
+        case TargetPlatform.macOS:
+        case TargetPlatform.android:
+        case TargetPlatform.fuchsia:
+        case TargetPlatform.linux:
+        case TargetPlatform.windows:
+          // Collapse the selection and hide the toolbar and handles.
+          userUpdateTextEditingValue(
+            TextEditingValue(
+              text: textEditingValue.text,
+              selection: TextSelection.collapsed(
+                  offset: textEditingValue.selection.end),
+            ),
+            SelectionChangedCause.toolbar,
+          );
+          break;
+      }
+    }
+  }
+
+  @override
+  void cutSelection(SelectionChangedCause cause) {
+    // Copied straight from EditableTextState
+    super.cutSelection(cause);
+    if (cause == SelectionChangedCause.toolbar) {
+      bringIntoView(textEditingValue.selection.extent);
+      hideToolbar();
+    }
+  }
+
+  @override
+  Future<void> pasteText(SelectionChangedCause cause) async {
+    // Copied straight from EditableTextState
+    super.pasteText(cause); // ignore: unawaited_futures
+    if (cause == SelectionChangedCause.toolbar) {
+      bringIntoView(textEditingValue.selection.extent);
+      hideToolbar();
+    }
+  }
+
+  @override
+  void selectAll(SelectionChangedCause cause) {
+    // Copied straight from EditableTextState
+    super.selectAll(cause);
+    if (cause == SelectionChangedCause.toolbar) {
+      bringIntoView(textEditingValue.selection.extent);
+    }
+  }
+
+  @override
   bool get wantKeepAlive => widget.focusNode.hasFocus;
+
+  @override
+  bool get obscureText => false;
+
+  @override
+  bool get selectionEnabled => widget.enableInteractiveSelection;
+
+  @override
+  bool get readOnly => widget.readOnly;
+
+  @override
+  TextLayoutMetrics get textLayoutMetrics => getRenderEditor()!;
+
+  @override
+  AnimationController get floatingCursorResetController =>
+      _floatingCursorResetController;
+
+  late AnimationController _floatingCursorResetController;
 }
 
 class _Editor extends MultiChildRenderObjectWidget {
@@ -692,9 +811,12 @@ class _Editor extends MultiChildRenderObjectWidget {
     required this.endHandleLayerLink,
     required this.onSelectionChanged,
     required this.scrollBottomInset,
+    required this.cursorController,
     this.padding = EdgeInsets.zero,
+    this.offset,
   }) : super(key: key, children: children);
 
+  final ViewportOffset? offset;
   final Document document;
   final TextDirection textDirection;
   final bool hasFocus;
@@ -704,28 +826,31 @@ class _Editor extends MultiChildRenderObjectWidget {
   final TextSelectionChangedHandler onSelectionChanged;
   final double scrollBottomInset;
   final EdgeInsetsGeometry padding;
+  final CursorCont cursorController;
 
   @override
   RenderEditor createRenderObject(BuildContext context) {
     return RenderEditor(
-      null,
-      textDirection,
-      scrollBottomInset,
-      padding,
-      document,
-      selection,
-      hasFocus,
-      onSelectionChanged,
-      startHandleLayerLink,
-      endHandleLayerLink,
-      const EdgeInsets.fromLTRB(4, 4, 4, 5),
-    );
+        offset,
+        null,
+        textDirection,
+        scrollBottomInset,
+        padding,
+        document,
+        selection,
+        hasFocus,
+        onSelectionChanged,
+        startHandleLayerLink,
+        endHandleLayerLink,
+        const EdgeInsets.fromLTRB(4, 4, 4, 5),
+        cursorController);
   }
 
   @override
   void updateRenderObject(
       BuildContext context, covariant RenderEditor renderObject) {
     renderObject
+      ..offset = offset
       ..document = document
       ..setContainer(document.root)
       ..textDirection = textDirection
