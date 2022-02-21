@@ -241,28 +241,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ignore: unused_element
-  Future<MediaPickSetting?> _selectMediaPickSetting(BuildContext context) =>
-      showDialog<MediaPickSetting>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          contentPadding: EdgeInsets.zero,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextButton.icon(
-                icon: const Icon(Icons.collections),
-                label: const Text('Gallery'),
-                onPressed: () => Navigator.pop(ctx, MediaPickSetting.Gallery),
-              ),
-              TextButton.icon(
-                icon: const Icon(Icons.link),
-                label: const Text('Link'),
-                onPressed: () => Navigator.pop(ctx, MediaPickSetting.Link),
-              )
-            ],
-          ),
-        ),
-      );
+  // Future<MediaPickSetting?> _selectMediaPickSetting(BuildContext context) =>
+  //     showDialog<MediaPickSetting>(
+  //       context: context,
+  //       builder: (ctx) => AlertDialog(
+  //         contentPadding: EdgeInsets.zero,
+  //         content: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           children: [
+  //             TextButton.icon(
+  //               icon: const Icon(Icons.collections),
+  //               label: const Text('Gallery'),
+  //               onPressed: () => Navigator.pop(ctx, MediaPickSetting.Gallery),
+  //             ),
+  //             TextButton.icon(
+  //               icon: const Icon(Icons.link),
+  //               label: const Text('Link'),
+  //               onPressed: () => Navigator.pop(ctx, MediaPickSetting.Link),
+  //             )
+  //           ],
+  //         ),
+  //       ),
+  //     );
 
   Widget _buildMenuBar(BuildContext context) {
     final size = MediaQuery.of(context).size;
