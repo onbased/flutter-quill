@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+// import 'package:image_picker/image_picker.dart';
 
 import '../../models/documents/nodes/embeddable.dart';
 import '../../models/themes/quill_dialog_theme.dart';
@@ -67,7 +67,7 @@ class VideoButton extends StatelessWidget {
       final source = await selector(context);
       if (source != null) {
         if (source == MediaPickSetting.Gallery) {
-          _pickVideo(context);
+          // _pickVideo(context);
         } else {
           _typeLink(context);
         }
@@ -77,14 +77,14 @@ class VideoButton extends StatelessWidget {
     }
   }
 
-  void _pickVideo(BuildContext context) => ImageVideoUtils.handleVideoButtonTap(
-        context,
-        controller,
-        ImageSource.gallery,
-        onVideoPickCallback!,
-        filePickImpl: filePickImpl,
-        webVideoPickImpl: webVideoPickImpl,
-      );
+  // void _pickVideo(BuildContext context) => ImageVideoUtils.handleVideoButtonTap(
+  //       context,
+  //       controller,
+  //       ImageSource.gallery,
+  //       onVideoPickCallback!,
+  //       filePickImpl: filePickImpl,
+  //       webVideoPickImpl: webVideoPickImpl,
+  //     );
 
   void _typeLink(BuildContext context) {
     showDialog<String>(

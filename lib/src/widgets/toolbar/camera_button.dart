@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+// import 'package:image_picker/image_picker.dart';
 
 import '../../models/themes/quill_icon_theme.dart';
 import '../../translations/toolbar.i18n.dart';
@@ -109,14 +109,14 @@ class CameraButton extends StatelessWidget {
       if (source != null) {
         switch (source) {
           case MediaPickSetting.Camera:
-            await ImageVideoUtils.handleImageButtonTap(
-                context, controller, ImageSource.camera, onImagePickCallback,
-                filePickImpl: filePickImpl, webImagePickImpl: webImagePickImpl);
+            // await ImageVideoUtils.handleImageButtonTap(
+            //     context, controller, ImageSource.camera, onImagePickCallback,
+            //     filePickImpl: filePickImpl, webImagePickImpl: webImagePickImpl);
             break;
           case MediaPickSetting.Video:
-            await ImageVideoUtils.handleVideoButtonTap(
-                context, controller, ImageSource.camera, onVideoPickCallback,
-                filePickImpl: filePickImpl, webVideoPickImpl: webVideoPickImpl);
+            // await ImageVideoUtils.handleVideoButtonTap(
+            //     context, controller, ImageSource.camera, onVideoPickCallback,
+            //     filePickImpl: filePickImpl, webVideoPickImpl: webVideoPickImpl);
             break;
           default:
             throw ArgumentError('Invalid MediaSetting');
